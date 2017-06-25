@@ -9,6 +9,8 @@ openssl x509 -in certificate.pem -text -noout
 #require "hbhttpd"
 #require "hbnetio"
 
+#require "hbcurl"
+
 REQUEST __HBEXTERN__HBSSL__
 
 REQUEST DBFCDX
@@ -36,6 +38,8 @@ PROCEDURE Main()
    LOCAL oLogError
 
    LOCAL nPort
+
+   hb_cdpSelect("UTF8")
 
    IF hb_argCheck( "help" )
       ? "Usage: app [options]"
@@ -90,11 +94,12 @@ PROCEDURE Main()
          "PrivateKeyFilename"  => "privatekey.pem", ;
          "CertificateFilename" => "certificate.pem", ; //"certificate.crt", ;
          "SSL"                 => .T., ;
-         "Mount"          => { ;
-         "/rne_votante"      => @proc_tpuy(), ;
-         "/hello"            => {|| UWrite( "Hello!" ) }, ;
-         "/info"             => {|| UProcInfo() }, ;
-         "/"                 => {|| URedirect( "/hello" ) } } } )
+         "Mount"               => { ;
+         "/rne_votante"        => @proc_tpuy(), ;
+         "/uctoutf8"           => @proc_uctoutf8(), ;
+         "/hello"              => {|| UWrite( "Hello!" ) }, ;
+         "/info"               => {|| UProcInfo() }, ;
+         "/"                   => {|| URedirect( "/hello" ) } } } )
       oLogError:Close()
       oLogAccess:Close()
       ? "Server error:", oServer:cError
@@ -113,8 +118,46 @@ STATIC FUNCTION FromRemote( cFuncName, cObj, ... )
    local uReturn
 
    if hb_pValue(1) = nil ; return nil ; endif
+//tracelog( "solicitando "+cFuncName+" , , ..." )
+? procname()
+? "EJECUTANDO ", cFuncName
    uReturn := hb_deserialize( netio_funcexec( cFuncName, "", cObj, ...  ) )
-return uReturn 
+return uReturn //hb_deserialize( netio_funcexec( ... ) )
+
+
+STATIC FUNCTION proc_uctoutf8()
+   local cCode, hResult, cResult
+   local cResp := "json"
+   local aResp := {"json","hb"}
+
+   IF hb_HHasKey( get, "code" )
+      cCode := PadR( get["code"], 1 )
+      if Empty(cCode) ; RETURN NIL ; endif
+   ENDIF
+
+   IF hb_HHasKey( get, "res" )
+      if ASCAN( aResp, {|a| a=get["res"] } ) > 0  
+         cResp := get["res"]
+      endif
+   ENDIF
+
+   cResult := net:uctoutf8( cCode )
+   if Empty( cResult )
+      RETURN NIL
+   endif
+
+   hResult := { "utf8"=>cResult, "string" => hb_hextostr(cResult) }
+
+   Do Case 
+      Case cResp = "json"
+         UWrite( hb_jsonEncode( hResult ) ) 
+      Case cResp = "hb"
+         UWrite( hb_ValToExp( cResult ) )
+   EndCase
+
+   RETURN NIL
+
+
 
 
 STATIC FUNCTION proc_tpuy()
@@ -137,7 +180,10 @@ STATIC FUNCTION proc_tpuy()
       endif
    ENDIF
 
+
+? "invocando al netio.."
    aResult := ~RNE_GetVotante( cNac, cCedula )[1]
+? hb_ValToExp(aResult)
    if Empty( aResult )
       RETURN NIL
    endif
@@ -150,8 +196,8 @@ STATIC FUNCTION proc_tpuy()
          UWrite( hb_ValToExp( aResult ) )
    EndCase
 
+
    RETURN NIL
 
 
-
-
+//eo

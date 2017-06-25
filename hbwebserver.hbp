@@ -1,0 +1,10 @@
+hbhttpd.hbc
+hbssl.hbc
+hbnetio.hbc
+hbcurl.hbc
+xhb.hbc
+
+-w3 -es2
+
+hbwebserver.prg
+
